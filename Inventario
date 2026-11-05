@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión de Inventario</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js para visualizaciones -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased h-screen flex overflow-hidden">
+
+    <!-- Sidebar Navegación -->
+    <aside id="sidebar" class="w-64 bg-slate-900 text-slate-300 flex flex-col transition-all duration-300 z-30 absolute md:relative inset-y-0 left-0 -translate-x-full md:translate-x-0">
+        <!-- Logo Header -->
+        <div class="h-16 flex items-center justify-between px-6 bg-slate-950 text-white font-bold text-lg tracking-wider border-b border-slate-800">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-sky-600 rounded-lg text-white">
+                    <i data-lucide="box" class="w-5 h-5"></i>
+                </div>
+                <span>StockMaster</span>
+            </div>
+            <button id="closeSidebarMobile" class="md:hidden text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+        </div>
+
+        <!-- Links del Menú -->
+        <nav class="flex-1 py-6 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+            <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors bg-sky-600 text-white">
+                <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                <span>Panel de Control</span>
+            </button>
+            <button onclick="switchTab('inventory')" id="nav-inventory" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors">
+                <i data-lucide="boxes" class="w-5 h-5"></i>
+                <span>Inventario</span>
+            </button>
+            <button onclick="switchTab('movements')" id="nav-movements" class="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-slate-100 transition-colors">
+                <i data-lucide="arrow-up-right-down-left" class="w-5 h-5"></i>
+                <span>Movimientos</span>
+            </button>
+        </nav>
+
+        <!-- Footer / Usuario Info -->
+        <div class="p-4 border-t border-slate-800 flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-bold text-white text-sm">
+                AD
+            </div>
+            <div class="overflow-hidden">
+                <p class="text-sm font-medium text-white truncate">Admin Usuario</p>
+                <p class="text-xs text-slate-500 truncate">Almacén Central</p>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Overlay móvil para la barra lateral -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-slate-900/50 z-20 hidden md:hidden"></div>
+
+    <!-- Contenido Principal -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        
+        <!-- Header Superior -->
+        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-10">
+            <div class="flex items-center space-x-3">
+                <button id="openSidebarMobile" class="md:hidden p-2 text-slate-600 hover:text-slate-900 rounded-lg border border-slate-200">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <h1 id="pageTitle" class="text-xl font-bold text-slate-900">Panel de Control</h1>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <button onclick="openProductModal()" class="flex items-center space-x-2 bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-xl font-medium text-sm transition shadow-sm">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Nuevo Producto</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Área de contenido con Scroll -->
+        <main class="flex-1 overflow-y-auto bg-slate-50 p-4 sm:p-6 custom-scrollbar">
+
+            <!-- Mensajes Globales de Notificación Toast -->
+            <div id="toastContainer" class="fixed top-20 right-6 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+            <!-- TAB 1: DASHBOARD -->
+            <div id="tab-dashboard" class="space-y-6">
+                <!-- Tarjetas de Métricas principales -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Productos</p>
+                            <h3 id="stat-total-items" class="text-2xl font-bold text-slate-900 mt-1">0</h3>
+                        </div>
+                        <div class="p-3 bg-sky-50 text-sky-600 rounded-xl">
+                            <i data-lucide="package" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Valor del Inventario</p>
+                            <h3 id="stat-total-value" class="text-2xl font-bold text-slate-900 mt-1">$0.00</h3>
+                        </div>
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+                            <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Bajo Stock</p>
+                            <h3 id="stat-low-stock" class="text-2xl font-bold text-amber-600 mt-1">0</h3>
+                        </div>
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-xl">
+                            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Agotados</p>
+                            <h3 id="stat-out-of-stock" class="text-2xl font-bold text-rose-600 mt-1">0</h3>
+                        </div>
+                        <div class="p-3 bg-rose-50 text-rose-600 rounded-xl">
+                            <i data-lucide="x-circle" class="w-6 h-6"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráficos y Listado rápido de Alertas -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <!-- Gráfico de distribución de stock por categoría -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-bold text-slate-900 text-lg">Distribución por Categorías</h2>
+                        </div>
+                        <div class="h-64 relative flex items-center justify-center">
+                            <canvas id="categoryChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Alertas Stock Crítico -->
+                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col">
+                        <div class="flex items-center justify-between mb-4">
+                            <h2 class="font-bold text-slate-900 text-lg flex items-center gap-2">
+                                <i data-lucide="bell" class="w-5 h-5 text-amber-500"></i>
+                                Alertas de Stock
+                            </h2>
+                            <span id="badge-alert-count" class="px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800 rounded-full">0</span>
+                        </div>
+                        <div id="lowStockList" class="flex-1 overflow-y-auto custom-scrollbar space-y-3 max-h-64 pr-1">
+                            <!-- Inserción dinámica de ítems con stock bajo -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: INVENTARIO (TABLA COMPLETA) -->
+            <div id="tab-inventory" class="hidden space-y-6">
+                <!-- Barra de búsqueda y Filtros -->
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <!-- Búsqueda por Texto -->
+                    <div class="relative w-full md:w-80">
+                        <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Buscar por SKU, Nombre..." class="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-sky-500">
+                    </div>
+
+                    <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                        <!-- Filtro Categoría -->
+                        <select id="categoryFilter" onchange="applyFilters()" class="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            <option value="ALL">Todas las Categorías</option>
+                        </select>
+
+                        <!-- Filtro Estado Stock -->
+                        <select id="statusFilter" onchange="applyFilters()" class="px-3 py-2 border border-slate-200 rounded-xl text-sm text-slate-600 bg-white focus:outline-none focus:ring-2 focus:ring-sky-500">
+                            <option value="ALL">Todos los Estados</option>
+                            <option value="NORMAL">Normal</option>
+                            <option value="LOW">Bajo Stock</option>
+                            <option value="OUT">Agotado</option>
+                        </select>
+
+                        <!-- Botón Exportar CSV -->
+                        <button onclick="exportToCSV()" class="flex items-center space-x-2 border border-slate-200 hover:bg-slate-50 text-slate-700 px-3 py-2 rounded-xl text-sm font-medium transition">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Exportar CSV</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabla de Productos -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    <th class="py-3 px-4">SKU / Código</th>
+                                    <th class="py-3 px-4">Producto</th>
+                                    <th class="py-3 px-4">Categoría</th>
+                                    <th class="py-3 px-4">Ubicación</th>
+                                    <th class="py-3 px-4">Stock</th>
+                                    <th class="py-3 px-4">Costo Unit.</th>
+                                    <th class="py-3 px-4">Valor Total</th>
+                                    <th class="py-3 px-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventoryTableBody" class="divide-y divide-slate-100 text-sm">
+                                <!-- Filas de productos inyectadas por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Footer con paginación/conteo -->
+                    <div class="px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex justify-between items-center">
+                        <span id="tableCountInfo">Mostrando 0 productos</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: MOVIMIENTOS (HISTORIAL) -->
+            <div id="tab-movements" class="hidden space-y-6">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+                    <h2 class="font-bold text-slate-900 text-lg">Historial de Entradas y Salidas</h2>
+                    <button onclick="openStockMovementModal()" class="flex items-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-medium text-sm transition">
+                        <i data-lucide="arrow-up-right-down-left" class="w-4 h-4"></i>
+                        <span>Registrar Movimiento</span>
+                    </button>
+                </div>
+
+                <!-- Tabla de Historial -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    <th class="py-3 px-4">Fecha y Hora</th>
+                                    <th class="py-3 px-4">Tipo</th>
+                                    <th class="py-3 px-4">Producto</th>
+                                    <th class="py-3 px-4">Cantidad</th>
+                                    <th class="py-3 px-4">Notas / Razón</th>
+                                </tr>
+                            </thead>
+                            <tbody id="movementsTableBody" class="divide-y divide-slate-100 text-sm">
+                                <!-- Registros dinámicos -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODAL 1: AGREGAR / EDITAR PRODUCTO -->
+    <div id="productModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 id="productModalTitle" class="font-bold text-slate-900 text-lg">Agregar Producto</h3>
+                <button onclick="closeProductModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <form id="productForm" onsubmit="handleProductSubmit(event)" class="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                <input type="hidden" id="prodId">
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">SKU / Código *</label>
+                        <input type="text" id="prodSku" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Categoría *</label>
+                        <input type="text" id="prodCategory" required placeholder="Ej: Electrónica, Ropa" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Nombre del Producto *</label>
+                    <input type="text" id="prodName" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Cantidad Inicial / Actual *</label>
+                        <input type="number" id="prodStock" min="0" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Stock Mínimo (Alerta) *</label>
+                        <input type="number" id="prodMinStock" min="0" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Costo Unitario ($) *</label>
+                        <input type="number" id="prodCost" step="0.01" min="0" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">Ubicación / Almacén</label>
+                        <input type="text" id="prodLocation" placeholder="Ej: Pasillo 3, Estante A" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+                    <button type="button" onclick="closeProductModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 text-sm hover:bg-slate-50 transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-sm font-medium transition">Guardar Producto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: MOVIMIENTO RÁPIDO DE STOCK (ENTRADA / SALIDA) -->
+    <div id="movementModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-100">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-900 text-lg">Registrar Movimiento de Stock</h3>
+                <button onclick="closeStockMovementModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <form id="movementForm" onsubmit="handleMovementSubmit(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Seleccionar Producto *</label>
+                    <select id="movProductId" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                        <!-- Opciones inyectadas dinámicamente -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Tipo de Movimiento *</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="border border-slate-200 rounded-xl p-3 flex items-center space-x-2 cursor-pointer hover:bg-emerald-50 border-emerald-200">
+                            <input type="radio" name="movType" value="IN" checked class="text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                                <i data-lucide="arrow-down-left" class="w-4 h-4"></i> Entrada (+)
+                            </span>
+                        </label>
+                        <label class="border border-slate-200 rounded-xl p-3 flex items-center space-x-2 cursor-pointer hover:bg-rose-50 border-rose-200">
+                            <input type="radio" name="movType" value="OUT" class="text-rose-600 focus:ring-rose-500">
+                            <span class="text-xs font-semibold text-rose-700 flex items-center gap-1">
+                                <i data-lucide="arrow-up-right" class="w-4 h-4"></i> Salida (-)
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Cantidad *</label>
+                    <input type="number" id="movQuantity" min="1" required class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">Motivo / Notas</label>
+                    <input type="text" id="movNotes" placeholder="Ej: Venta de mostrador, Reposición, Merma" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-sky-500 focus:outline-none">
+                </div>
+
+                <div class="pt-4 border-t border-slate-100 flex justify-end space-x-3">
+                    <button type="button" onclick="closeStockMovementModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 text-sm hover:bg-slate-50 transition">Cancelar</button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-medium transition">Aplicar Movimiento</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- LOGICA JAVASCRIPT -->
+    <script>
+        // --- DATOS Y ESTADO DE LA APLICACIÓN ---
+        let products = [
+            { id: '1', sku: 'LAP-001', name: 'Laptop Pro 15"', category: 'Electrónica', stock: 12, minStock: 5, cost: 850.00, location: 'Almacén A-1' },
+            { id: '2', sku: 'MON-002', name: 'Monitor 4K 27"', category: 'Electrónica', stock: 3, minStock: 5, cost: 320.00, location: 'Almacén A-2' },
+            { id: '3', sku: 'TECL-003', name: 'Teclado Mecánico RGB', category: 'Accesorios', stock: 25, minStock: 8, cost: 45.50, location: 'Estante B-1' },
+            { id: '4', sku: 'RAT-004', name: 'Ratón Inalámbrico', category: 'Accesorios', stock: 0, minStock: 10, cost: 18.00, location: 'Estante B-2' },
+            { id: '5', sku: 'SILL-005', name: 'Silla Ergonómica Oficina', category: 'Mobiliario', stock: 4, minStock: 4, cost: 140.00, location: 'Bodega C' }
+        ];
+
+        let movements = [
+            { id: 'm1', date: new Date().toLocaleString(), productId: '1', productName: 'Laptop Pro 15"', type: 'IN', quantity: 5, notes: 'Inventario Inicial' },
+            { id: 'm2', date: new Date().toLocaleString(), productId: '2', productName: 'Monitor 4K 27"', type: 'OUT', quantity: 2, notes: 'Venta cliente corporativo' }
+        ];
+
+        let chartInstance = null;
+
+        // --- INICIALIZACIÓN ---
+        window.addEventListener('DOMContentLoaded', () => {
+            // Cargar datos del LocalStorage si existen
+            const savedProducts = localStorage.getItem('inventory_products');
+            const savedMovements = localStorage.getItem('inventory_movements');
+            if (savedProducts) products = JSON.parse(savedProducts);
+            if (savedMovements) movements = JSON.parse(savedMovements);
+
+            lucide.createIcons();
+            initChart();
+            renderDashboard();
+            renderInventoryTable();
+            renderMovementsTable();
+            populateCategoryFilter();
+            setupMobileSidebar();
+        });
+
+        function saveData() {
+            localStorage.setItem('inventory_products', JSON.stringify(products));
+            localStorage.setItem('inventory_movements', JSON.stringify(movements));
+        }
+
+        // --- NAVEGACIÓN Y TABS ---
+        function switchTab(tabId) {
+            const tabs = ['dashboard', 'inventory', 'movements'];
+            tabs.forEach(id => {
+                document.getElementById(`tab-${id}`).classList.add('hidden');
+                const btn = document.getElementById(`nav-${id}`);
+                btn.classList.remove('bg-sky-600', 'text-white');
+                btn.classList.add('text-slate-400', 'hover:bg-slate-800', 'hover:text-slate-100');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            activeBtn.classList.remove('text-slate-400', 'hover:bg-slate-800', 'hover:text-slate-100');
+            activeBtn.classList.add('bg-sky-600', 'text-white');
+
+            const titles = {
+                dashboard: 'Panel de Control',
+                inventory: 'Gestión de Inventario',
+                movements: 'Historial de Movimientos'
+            };
+            document.getElementById('pageTitle').innerText = titles[tabId];
+
+            // Re-renderizar elementos según el tab activo
+            if (tabId === 'dashboard') {
+                renderDashboard();
+            } else if (tabId === 'inventory') {
+                renderInventoryTable();
+            } else if (tabId === 'movements') {
+                renderMovementsTable();
+            }
+
+            // Cerrar menú móvil si está abierto
+            closeSidebar();
+        }
+
+        function setupMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            const openBtn = document.getElementById('openSidebarMobile');
+            const closeBtn = document.getElementById('closeSidebarMobile');
+
+            function openSidebar() {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            }
+
+            function closeSidebar() {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+
+            window.closeSidebar = closeSidebar;
+
+            openBtn.addEventListener('click', openSidebar);
+            closeBtn.addEventListener('click', closeSidebar);
+            overlay.addEventListener('click', closeSidebar);
+        }
+
+        // --- RENDER DASHBOARD & MÉTRICAS ---
+        function renderDashboard() {
+            const totalItems = products.length;
+            const totalValue = products.reduce((acc, p) => acc + (p.stock * p.cost), 0);
+            const lowStockProducts = products.filter(p => p.stock <= p.minStock && p.stock > 0);
+            const outOfStockProducts = products.filter(p => p.stock === 0);
+
+            document.getElementById('stat-total-items').innerText = totalItems;
+            document.getElementById('stat-total-value').innerText = `$${totalValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            document.getElementById('stat-low-stock').innerText = lowStockProducts.length;
+            document.getElementById('stat-out-of-stock').innerText = outOfStockProducts.length;
+
+            // Lista de Alertas
+            const alertContainer = document.getElementById('lowStockList');
+            alertContainer.innerHTML = '';
+
+            const criticalProducts = [...outOfStockProducts, ...lowStockProducts];
+            document.getElementById('badge-alert-count').innerText = criticalProducts.length;
+
+            if (criticalProducts.length === 0) {
+                alertContainer.innerHTML = `
+                    <div class="text-center py-8 text-slate-400 text-sm">
+                        <i data-lucide="check-circle-2" class="w-8 h-8 mx-auto mb-2 text-emerald-500"></i>
+                        No hay alertas de stock pendientes.
+                    </div>`;
+            } else {
+                criticalProducts.forEach(prod => {
+                    const isOut = prod.stock === 0;
+                    const card = document.createElement('div');
+                    card.className = `p-3 rounded-xl border flex items-center justify-between text-xs ${isOut ? 'bg-rose-50 border-rose-100 text-rose-900' : 'bg-amber-50 border-amber-100 text-amber-900'}`;
+                    card.innerHTML = `
+                        <div>
+                            <p class="font-bold">${prod.name}</p>
+                            <p class="text-slate-500">SKU: ${prod.sku} | Mínimo: ${prod.minStock}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-2 py-1 rounded-md font-bold ${isOut ? 'bg-rose-200 text-rose-800' : 'bg-amber-200 text-amber-800'}">
+                                ${isOut ? 'Agotado' : `Quedan: ${prod.stock}`}
+                            </span>
+                        </div>
+                    `;
+                    alertContainer.appendChild(card);
+                });
+            }
+
+            updateChart();
+            lucide.createIcons();
+        }
+
+        // --- GRÁFICO CHART.JS ---
+        function initChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            chartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Unidades en Stock',
+                        data: [],
+                        backgroundColor: '#0284c7',
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateChart() {
+            if (!chartInstance) return;
+
+            const categoryCounts = {};
+            products.forEach(p => {
+                categoryCounts[p.category] = (categoryCounts[p.category] || 0) + p.stock;
+            });
+
+            chartInstance.data.labels = Object.keys(categoryCounts);
+            chartInstance.data.datasets[0].data = Object.values(categoryCounts);
+            chartInstance.update();
+        }
+
+        // --- GESTIÓN DE TABLA DE INVENTARIO Y FILTROS ---
+        function populateCategoryFilter() {
+            const select = document.getElementById('categoryFilter');
+            const categories = [...new Set(products.map(p => p.category))];
+            
+            select.innerHTML = '<option value="ALL">Todas las Categorías</option>';
+            categories.forEach(cat => {
+                select.innerHTML += `<option value="${cat}">${cat}</option>`;
+            });
+        }
+
+        function renderInventoryTable() {
+            const tbody = document.getElementById('inventoryTableBody');
+            tbody.innerHTML = '';
+
+            const filtered = getFilteredProducts();
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="py-8 text-center text-slate-400">
+                            No se encontraron productos coincidentes.
+                        </td>
+                    </tr>`;
+            } else {
+                filtered.forEach(p => {
+                    const totalVal = p.stock * p.cost;
+                    let statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">Normal</span>`;
+                    
+                    if (p.stock === 0) {
+                        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">Agotado</span>`;
+                    } else if (p.stock <= p.minStock) {
+                        statusBadge = `<span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Bajo Stock</span>`;
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50 border-b border-slate-100 transition';
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 font-mono text-xs font-semibold text-slate-600">${p.sku}</td>
+                        <td class="py-3 px-4 font-medium text-slate-900">${p.name}</td>
+                        <td class="py-3 px-4 text-slate-600">${p.category}</td>
+                        <td class="py-3 px-4 text-slate-500 text-xs">${p.location || '-'}</td>
+                        <td class="py-3 px-4">
+                            <div class="flex items-center space-x-2">
+                                <span class="font-bold">${p.stock}</span>
+                                ${statusBadge}
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-slate-600">$${p.cost.toFixed(2)}</td>
+                        <td class="py-3 px-4 font-semibold text-slate-900">$${totalVal.toFixed(2)}</td>
+                        <td class="py-3 px-4 text-right space-x-2">
+                            <button onclick="editProduct('${p.id}')" class="p-1 text-slate-400 hover:text-sky-600 transition" title="Editar">
+                                <i data-lucide="edit-3" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="deleteProduct('${p.id}')" class="p-1 text-slate-400 hover:text-rose-600 transition" title="Eliminar">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            document.getElementById('tableCountInfo').innerText = `Mostrando ${filtered.length} de ${products.length} productos`;
+            lucide.createIcons();
+        }
+
+        function getFilteredProducts() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const category = document.getElementById('categoryFilter').value;
+            const status = document.getElementById('statusFilter').value;
+
+            return products.filter(p => {
+                const matchesSearch = p.name.toLowerCase().includes(search) || p.sku.toLowerCase().includes(search);
+                const matchesCategory = category === 'ALL' || p.category === category;
+                
+                let matchesStatus = true;
+                if (status === 'NORMAL') matchesStatus = p.stock > p.minStock;
+                if (status === 'LOW') matchesStatus = p.stock <= p.minStock && p.stock > 0;
+                if (status === 'OUT') matchesStatus = p.stock === 0;
+
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+        }
+
+        function applyFilters() {
+            renderInventoryTable();
+        }
+
+        // --- CRUD PRODUCTOS ---
+        function openProductModal(editId = null) {
+            const modal = document.getElementById('productModal');
+            const form = document.getElementById('productForm');
+            const title = document.getElementById('productModalTitle');
+
+            form.reset();
+            document.getElementById('prodId').value = '';
+
+            if (editId) {
+                const p = products.find(prod => prod.id === editId);
+                if (p) {
+                    title.innerText = 'Editar Producto';
+                    document.getElementById('prodId').value = p.id;
+                    document.getElementById('prodSku').value = p.sku;
+                    document.getElementById('prodName').value = p.name;
+                    document.getElementById('prodCategory').value = p.category;
+                    document.getElementById('prodStock').value = p.stock;
+                    document.getElementById('prodMinStock').value = p.minStock;
+                    document.getElementById('prodCost').value = p.cost;
+                    document.getElementById('prodLocation').value = p.location || '';
+                }
+            } else {
+                title.innerText = 'Agregar Producto';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeProductModal() {
+            document.getElementById('productModal').classList.add('hidden');
+        }
+
+        function handleProductSubmit(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('prodId').value;
+            const sku = document.getElementById('prodSku').value.trim();
+            const name = document.getElementById('prodName').value.trim();
+            const category = document.getElementById('prodCategory').value.trim();
+            const stock = parseInt(document.getElementById('prodStock').value);
+            const minStock = parseInt(document.getElementById('prodMinStock').value);
+            const cost = parseFloat(document.getElementById('prodCost').value);
+            const location = document.getElementById('prodLocation').value.trim();
+
+            if (id) {
+                // Modificar producto existente
+                const idx = products.findIndex(p => p.id === id);
+                if (idx !== -1) {
+                    products[idx] = { id, sku, name, category, stock, minStock, cost, location };
+                    showToast('Producto actualizado con éxito', 'success');
+                }
+            } else {
+                // Crear nuevo producto
+                const newId = Date.now().toString();
+                products.push({ id: newId, sku, name, category, stock, minStock, cost, location });
+                
+                // Registrar movimiento inicial
+                movements.unshift({
+                    id: Date.now().toString() + '-m',
+                    date: new Date().toLocaleString(),
+                    productId: newId,
+                    productName: name,
+                    type: 'IN',
+                    quantity: stock,
+                    notes: 'Carga de stock inicial'
+                });
+
+                showToast('Producto agregado al inventario', 'success');
+            }
+
+            saveData();
+            populateCategoryFilter();
+            renderDashboard();
+            renderInventoryTable();
+            closeProductModal();
+        }
+
+        function editProduct(id) {
+            openProductModal(id);
+        }
+
+        function deleteProduct(id) {
+            const p = products.find(prod => prod.id === id);
+            if (!p) return;
+
+            if (confirm(`¿Estás seguro de que deseas eliminar el producto "${p.name}"?`)) {
+                products = products.filter(prod => prod.id !== id);
+                saveData();
+                populateCategoryFilter();
+                renderDashboard();
+                renderInventoryTable();
+                showToast('Producto eliminado', 'info');
+            }
+        }
+
+        // --- GESTIÓN DE MOVIMIENTOS DE STOCK ---
+        function openStockMovementModal() {
+            const select = document.getElementById('movProductId');
+            select.innerHTML = '';
+
+            products.forEach(p => {
+                select.innerHTML += `<option value="${p.id}">${p.sku} - ${p.name} (Actual: ${p.stock})</option>`;
+            });
+
+            document.getElementById('movementForm').reset();
+            document.getElementById('movementModal').classList.remove('hidden');
+        }
+
+        function closeStockMovementModal() {
+            document.getElementById('movementModal').classList.add('hidden');
+        }
+
+        function handleMovementSubmit(e) {
+            e.preventDefault();
+
+            const productId = document.getElementById('movProductId').value;
+            const type = document.querySelector('input[name="movType"]:checked').value;
+            const quantity = parseInt(document.getElementById('movQuantity').value);
+            const notes = document.getElementById('movNotes').value.trim();
+
+            const product = products.find(p => p.id === productId);
+            if (!product) return;
+
+            if (type === 'OUT' && product.stock < quantity) {
+                showToast('Stock insuficiente para realizar la salida', 'error');
+                return;
+            }
+
+            // Actualizar stock del producto
+            if (type === 'IN') {
+                product.stock += quantity;
+            } else {
+                product.stock -= quantity;
+            }
+
+            // Registrar movimiento en el historial
+            movements.unshift({
+                id: Date.now().toString(),
+                date: new Date().toLocaleString(),
+                productId: product.id,
+                productName: product.name,
+                type: type,
+                quantity: quantity,
+                notes: notes || (type === 'IN' ? 'Entrada manual' : 'Salida manual')
+            });
+
+            saveData();
+            renderDashboard();
+            renderInventoryTable();
+            renderMovementsTable();
+            closeStockMovementModal();
+            showToast('Movimiento de stock registrado', 'success');
+        }
+
+        function renderMovementsTable() {
+            const tbody = document.getElementById('movementsTableBody');
+            tbody.innerHTML = '';
+
+            if (movements.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-slate-400">No hay movimientos registrados.</td></tr>`;
+                return;
+            }
+
+            movements.forEach(m => {
+                const isEntry = m.type === 'IN';
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 border-b border-slate-100 transition';
+                tr.innerHTML = `
+                    <td class="py-3 px-4 text-xs text-slate-500">${m.date}</td>
+                    <td class="py-3 px-4">
+                        <span class="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${isEntry ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            <i data-lucide="${isEntry ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3 h-3"></i>
+                            <span>${isEntry ? 'Entrada' : 'Salida'}</span>
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 font-medium text-slate-900">${m.productName}</td>
+                    <td class="py-3 px-4 font-bold ${isEntry ? 'text-emerald-600' : 'text-rose-600'}">
+                        ${isEntry ? '+' : '-'}${m.quantity}
+                    </td>
+                    <td class="py-3 px-4 text-slate-600 text-xs">${m.notes || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            lucide.createIcons();
+        }
+
+        // --- EXPORTAR A CSV ---
+        function exportToCSV() {
+            if (products.length === 0) {
+                showToast('No hay datos para exportar', 'error');
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "SKU,Nombre,Categoria,Ubicacion,Stock,Stock Minimo,Costo Unitario,Valor Total\n";
+
+            products.forEach(p => {
+                const total = p.stock * p.cost;
+                const row = [
+                    `"${p.sku}"`,
+                    `"${p.name}"`,
+                    `"${p.category}"`,
+                    `"${p.location || ''}"`,
+                    p.stock,
+                    p.minStock,
+                    p.cost.toFixed(2),
+                    total.toFixed(2)
+                ].join(",");
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `inventario_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            showToast('Inventario exportado a CSV correctamente', 'success');
+        }
+
+        // --- SISTEMA TOAST NOTIFICACIONES ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            const bgColors = {
+                success: 'bg-slate-900 text-white border-l-4 border-emerald-500',
+                error: 'bg-slate-900 text-white border-l-4 border-rose-500',
+                info: 'bg-slate-900 text-white border-l-4 border-sky-500'
+            };
